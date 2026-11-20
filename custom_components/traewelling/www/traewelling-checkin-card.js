@@ -100,6 +100,7 @@ function modeIcon(category) {
   if (c.includes("ferry")) return "mdi:ferry";
   if (c.includes("plane")) return "mdi:airplane";
   if (c.includes("taxi")) return "mdi:taxi";
+  if (c.includes("freight")) return "mdi:train-car-container";
   return "mdi:train";
 }
 
@@ -570,6 +571,7 @@ class TraewellingCheckinCard extends HTMLElement {
 
   async _openStation(station, wrap = true) {
     this._s.station = station;
+    this._s.availableTypes = [];
     this._s.when = null;
     this._s.travelType = "";
     this._s.filterHint = null;
@@ -599,6 +601,7 @@ class TraewellingCheckinCard extends HTMLElement {
     }
     if (r.station?.name) this._s.station = { ...this._s.station, ...r.station };
     this._s.times = r.times || {};
+    this._s.availableTypes = Array.isArray(r.available_travel_types) ? r.available_travel_types : [];
     this._s.departures = r.departures || [];
     this._s.loadedAt = Date.now();
   }
@@ -955,7 +958,10 @@ class TraewellingCheckinCard extends HTMLElement {
 
   _renderDepartures() {
     const { station, departures, travelType, when } = this._s;
-    const chips = TYPES.map(
+    // Nur Filter anbieten, die es an der Station gibt (leere Liste = unbekannt).
+    const avail = this._s.availableTypes || [];
+    const types = avail.length ? TYPES.filter(([v]) => !v || v === travelType || avail.includes(v)) : TYPES;
+    const chips = types.map(
       ([v, label]) =>
         `<button class="chip ${v === travelType ? "on" : ""}" data-a="type" data-v="${v}">${label}</button>`
     ).join("");
@@ -978,7 +984,7 @@ class TraewellingCheckinCard extends HTMLElement {
             </button>`;
           })
           .join("")
-      : `<div class="hint">${this._s.loading ? "Lade Abfahrten …" : "Keine Abfahrten gefunden."}</div>`;
+      : `<div class="hint">${this._s.loading ? "Lade Abfahrten …" : travelType ? "Keine Abfahrten mit diesem Filter." : "Keine Abfahrten gefunden."}</div>`;
 
     return `
       <div class="head">
@@ -1128,6 +1134,7 @@ class TraewellingCheckinCard extends HTMLElement {
     }
     const arr = toDate(l.arrival_real) || toDate(l.arrival_planned);
     this._s.station = { id, name: l.destination };
+    this._s.availableTypes = [];
     this._s.when = arr && arr > new Date() ? arr.toISOString() : null;
     this._s.travelType = "";
     this._s.filterHint = null;

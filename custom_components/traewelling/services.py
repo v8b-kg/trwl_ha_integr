@@ -343,6 +343,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
         return {
             "station": _station(meta.get("station")),
             "times": meta.get("times") or {},
+            # Verkehrsmittel, die es an der Station laut Datenquelle gibt
+            # (leer = unbekannt) – die Karte blendet die übrigen Filter aus.
+            "available_travel_types": [
+                t for t in meta.get("availableTravelTypes") or [] if isinstance(t, str)
+            ],
             "departures": [_departure(d) for d in items if isinstance(d, dict)],
         }
 

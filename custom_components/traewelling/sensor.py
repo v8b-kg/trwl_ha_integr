@@ -213,6 +213,7 @@ CATEGORY_LABELS = {
     "ferry": "Fähre",
     "taxi": "Taxi",
     "plane": "Flugzeug",
+    "freightTrain": "Güterzug",
 }
 PURPOSE_LABELS = {0: "Privat", 1: "Geschäftlich", 2: "Pendeln"}
 
@@ -348,6 +349,14 @@ def _operators(data: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(out, key=lambda r: r.get("count") or 0, reverse=True)
 
 
+def _purpose_label(value: Any) -> str:
+    """Reisezweck: die API liefert die Nummer (0/1/2) im Feld `name`."""
+    try:
+        return PURPOSE_LABELS[int(value)]
+    except (KeyError, TypeError, ValueError):
+        return str(value) if value is not None else "Unbekannt"
+
+
 def _purposes(data: dict[str, Any]) -> list[dict[str, Any]]:
     personal = data.get("personal")
     rows = personal.get("purpose") if isinstance(personal, dict) else None
@@ -355,7 +364,7 @@ def _purposes(data: dict[str, Any]) -> list[dict[str, Any]]:
         return []
     return [
         {
-            "name": PURPOSE_LABELS.get(r.get("reason"), str(r.get("reason"))),
+            "name": _purpose_label(first(r, "name", "reason")),
             "count": r.get("count"),
             "hours": minutes_to_hours(r.get("duration")),
         }

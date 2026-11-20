@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import logging
+import re
 import time
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -15,6 +15,7 @@ from aiohttp import ClientError, ClientSession
 
 from .cache import TtlCache
 from .const import DEFAULT_BASE_URL
+from .helpers import checkin_of, destination_of, first, origin_of, stop_name
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +70,36 @@ def _message(payload: Any, body: str) -> str:
     if not isinstance(message, str) or not message.strip():
         message = (body or "").strip()[:200] or "keine Details"
     return message
+
+
+CONFLICT_MESSAGE = "Du bist in diesem Zeitraum schon in eine andere Fahrt eingecheckt"
+
+
+def _conflict_message(payload: Any) -> str:
+    """409 beim Check-in: die kollidierenden Fahrten aus `data.conflicts` nennen."""
+    data = _data(payload)
+    conflicts = data.get("conflicts") if isinstance(data, dict) else None
+    trips = []
+    for status in conflicts if isinstance(conflicts, list) else []:
+        if not isinstance(status, dict):
+            continue
+        line = first(checkin_of(status), "lineName", "number")
+        origin = stop_name(origin_of(status))
+        dest = stop_name(destination_of(status))
+        route = f"{origin} → {dest}" if origin and dest else None
+        label = " ".join(str(x) for x in (line, route) if x)
+        if label:
+            trips.append(label)
+    if not trips:
+        return f"{CONFLICT_MESSAGE}."
+    more = f" und {len(trips) - 3} weitere" if len(trips) > 3 else ""
+    return f"{CONFLICT_MESSAGE}: {', '.join(trips[:3])}{more}."
+
+
+GONE_MESSAGE = (
+    "Träwelling hat diesen Endpunkt abgeschaltet (HTTP 410) – bitte die "
+    "Integration aktualisieren"
+)
 
 
 def _data(payload: Any) -> Any:
@@ -220,6 +251,8 @@ class TraewellingApi:
         status, payload, text = await self._request("GET", path, params=params)
         if status == 404 and allow_404:
             return None
+        if status == 410:
+            raise TraewellingError(f"{GONE_MESSAGE} ({path})")
         if status >= 400:
             raise TraewellingError(f"{_message(payload, text)} (HTTP {status})")
         return payload
@@ -235,9 +268,10 @@ class TraewellingApi:
         status, payload, _text = await self._request(method, path, body=body)
         if status == 409:
             raise TraewellingCheckinError(
-                conflict_message
-                or "Du bist in diesem Zeitraum schon in eine andere Fahrt eingecheckt."
+                conflict_message or _conflict_message(payload)
             )
+        if status == 410:
+            raise TraewellingCheckinError(f"{GONE_MESSAGE} ({path})")
         if status >= 400:
             message = (
                 payload.get("message") or payload.get("error")
