@@ -14,10 +14,16 @@ from homeassistant.util import dt as dt_util
 
 
 def user_of(status: dict[str, Any]) -> dict[str, Any]:
-    """Nutzer eines Status: neu `userDetails`, früher (vor 2024-08) direkt am Status."""
-    details = status.get("userDetails")
-    if isinstance(details, dict):
-        return details
+    """Nutzer eines Status.
+
+    Seit 2026-09-27 steckt er als Objekt in `user` (`userDetails` wurde
+    entfernt). Davor `userDetails`, vor 2024-08 flach am Status mit `user`
+    als ID.
+    """
+    for key in ("user", "userDetails"):
+        details = status.get(key)
+        if isinstance(details, dict):
+            return details
     return {
         "id": status.get("user"),
         "username": status.get("username"),
@@ -65,6 +71,24 @@ def destination_of(status: dict[str, Any] | None) -> dict[str, Any] | None:
     checkin = checkin_of(status) or {}
     value = first(checkin, "destination", "to")
     return value if isinstance(value, dict) else None
+
+
+def stop_name(stop: dict[str, Any] | None) -> str | None:
+    """Name eines Halts: neu `station.name`, `name` am Halt ist veraltet."""
+    stop = stop or {}
+    station = stop.get("station")
+    return first(station, "name") or stop.get("name")
+
+
+def stop_station_id(stop: dict[str, Any] | None) -> Any:
+    """Stations-ID eines Halts.
+
+    `id` am Halt ist bis 2026-11-30 die Stations-ID und wird danach zur ID des
+    Halts – deshalb zuerst `station.id`.
+    """
+    stop = stop or {}
+    station = stop.get("station")
+    return first(station, "id", default=None) or stop.get("id")
 
 
 def parse_dt(value: Any) -> datetime | None:

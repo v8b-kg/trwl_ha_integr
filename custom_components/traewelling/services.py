@@ -30,7 +30,15 @@ from .api import (
 )
 from .const import DOMAIN
 from .coordinator import TraewellingCoordinator
-from .helpers import distance_m, first
+from .helpers import (
+    delay_minutes,
+    distance_m,
+    first,
+    parse_dt,
+    stop_name,
+    stop_station_id,
+    user_of,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,6 +61,7 @@ VISIBILITY = {
     "followers": 2,
     "private": 3,
     "authenticated": 4,
+    "trusted": 5,
 }
 BUSINESS = {"private": 0, "business": 1, "commute": 2}
 
@@ -151,7 +160,9 @@ def _departure(raw: dict[str, Any]) -> dict[str, Any]:
         or (raw.get("destination") or {}).get("name"),
         "planned": raw.get("plannedWhen"),
         "real": raw.get("when"),
-        "delay": raw.get("delay"),
+        "delay": delay_minutes(
+            parse_dt(raw.get("plannedWhen")), parse_dt(raw.get("when"))
+        ),
         "platform": first(raw, "platform", "plannedPlatform"),
         "planned_platform": raw.get("plannedPlatform"),
         "cancelled": bool(raw.get("cancelled")),
@@ -237,9 +248,8 @@ def _ticket(raw: Any) -> dict[str, Any] | None:
 
 def _stop(raw: dict[str, Any]) -> dict[str, Any]:
     return {
-        "id": raw.get("id"),
-        "name": first(raw, "name", default=None)
-        or (raw.get("station") or {}).get("name"),
+        "id": stop_station_id(raw),
+        "name": stop_name(raw),
         "arrival_planned": first(raw, "arrivalPlanned", "arrival"),
         "arrival_real": raw.get("arrivalReal"),
         "departure_planned": first(raw, "departurePlanned", "departure"),
@@ -334,6 +344,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
         return {
             "station": _station(meta.get("station")),
             "times": meta.get("times") or {},
+            # Verkehrsmittel, die es an der Station laut Datenquelle gibt
+            # (leer = unbekannt) – die Karte blendet die übrigen Filter aus.
+            "available_travel_types": [
+                t for t in meta.get("availableTravelTypes") or [] if isinstance(t, str)
+            ],
             "departures": [_departure(d) for d in items if isinstance(d, dict)],
         }
 
@@ -399,7 +414,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
             else None,
             "points": points.get("points") if isinstance(points, dict) else points,
             "also_on_this_connection": [
-                first(s.get("userDetails") or {}, "displayName", "username")
+                first(user_of(s), "displayName", "username")
                 for s in (result.get("alsoOnThisConnection") or [])
                 if isinstance(s, dict)
             ],

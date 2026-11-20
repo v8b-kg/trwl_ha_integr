@@ -24,6 +24,7 @@ from .helpers import (
     is_own,
     meters_to_km,
     origin_of,
+    stop_name,
     user_of,
 )
 
@@ -72,8 +73,8 @@ def trip_of(status: dict[str, Any], now: datetime) -> dict[str, Any] | None:
         else None,
         "line": first(checkin, "lineName", "number"),
         "category": checkin.get("category"),
-        "origin": origin.get("name"),
-        "destination": dest.get("name"),
+        "origin": stop_name(origin),
+        "destination": stop_name(dest),
         "departure": _iso(dep),
         "arrival": _iso(arr),
         "origin_platform": first(

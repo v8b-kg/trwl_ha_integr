@@ -120,6 +120,7 @@ checkin:
             - followers
             - private
             - authenticated
+            - trusted
     business:
       default: private
       selector:
