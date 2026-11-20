@@ -38,6 +38,7 @@ from .helpers import (
     meters_to_km,
     minutes_to_hours,
     origin_of,
+    stop_name,
 )
 from .journey import arr_live, arr_source, station_of, transfer
 
@@ -117,7 +118,7 @@ def _upcoming_attrs(data: dict[str, Any]) -> dict[str, Any]:
     last = chain[-1] if chain else None
     if last is not None:
         dest = destination_of(last) or {}
-        attrs["final_destination"] = dest.get("name")
+        attrs["final_destination"] = stop_name(dest)
         attrs["final_arrival_planned"] = first(dest, "arrivalPlanned", "arrival")
         final = arr_live(last)
         attrs["final_arrival"] = final.isoformat() if final else None
@@ -169,11 +170,11 @@ def _status_attrs(status: dict[str, Any] | None) -> dict[str, Any]:
         "journey_number": checkin.get("journeyNumber"),
         "category": checkin.get("category"),
         "operator": operator.get("name") if isinstance(operator, dict) else None,
-        "origin": origin.get("name"),
+        "origin": stop_name(origin),
         "origin_platform": first(
             origin, "departurePlatformReal", "departurePlatformPlanned", "platform"
         ),
-        "destination": dest.get("name"),
+        "destination": stop_name(dest),
         "origin_station_id": station_of(origin).get("id"),
         "destination_station_id": station_of(dest).get("id"),
         "cancelled": bool(origin.get("cancelled") or dest.get("cancelled")),
@@ -245,8 +246,8 @@ def _ride(status: Any) -> dict[str, Any] | None:
     dest = destination_of(status) or {}
     return {
         "line": first(checkin, "lineName", "number"),
-        "origin": origin.get("name"),
-        "destination": dest.get("name"),
+        "origin": stop_name(origin),
+        "destination": stop_name(dest),
         "distance_km": meters_to_km(checkin.get("distance")),
         "duration_minutes": checkin.get("duration"),
         "date": first(origin, "departurePlanned", "departure"),
@@ -413,13 +414,13 @@ ACTIVE_SENSORS: tuple[TrwlSensorDescription, ...] = (
         key="current_origin",
         name="Start",
         icon="mdi:map-marker-outline",
-        value_fn=lambda d: (origin_of(_active(d)) or {}).get("name"),
+        value_fn=lambda d: stop_name(origin_of(_active(d))),
     ),
     TrwlSensorDescription(
         key="current_destination",
         name="Ziel",
         icon="mdi:map-marker-check",
-        value_fn=lambda d: (destination_of(_active(d)) or {}).get("name"),
+        value_fn=lambda d: stop_name(destination_of(_active(d))),
     ),
     TrwlSensorDescription(
         key="current_departure",

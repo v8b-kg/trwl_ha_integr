@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import logging
 import time
 from email.utils import parsedate_to_datetime
@@ -111,6 +112,8 @@ class TraewellingApi:
         # Bis zu diesem Zeitpunkt (time.monotonic) werden keine Anfragen gesendet.
         self._blocked_until = 0.0
         self._cache = TtlCache()
+        # Endpunkte, für die schon eine Sunset-Warnung geloggt wurde.
+        self._sunset_warned: set[str] = set()
 
     @property
     def user_agent(self) -> str:
@@ -146,6 +149,22 @@ class TraewellingApi:
         )
         return TraewellingRateLimitError(wait)
 
+    def _warn_sunset(self, method: str, path: str, sunset: str | None) -> None:
+        """Träwelling kündigt abgeschaltete Endpunkte per `Sunset`-Header an."""
+        if not sunset:
+            return
+        route = re.sub(r"/\d+", "/{id}", path.split("?")[0])
+        endpoint = f"{method} {route}"
+        if endpoint in self._sunset_warned:
+            return
+        self._sunset_warned.add(endpoint)
+        _LOGGER.warning(
+            "Träwelling schaltet %s am %s ab – bitte die Integration aktualisieren "
+            "(https://github.com/Traewelling/traewelling/blob/develop/API_CHANGELOG.md)",
+            endpoint,
+            sunset,
+        )
+
     async def _request(
         self,
         method: str,
@@ -176,6 +195,7 @@ class TraewellingApi:
                         raise self._block(resp.headers.get("Retry-After"), path)
                     text = await resp.text()
                     status = resp.status
+                    self._warn_sunset(method, path, resp.headers.get("Sunset"))
         except TraewellingError:
             raise
         except TimeoutError as err:
