@@ -34,6 +34,7 @@ const VISIBILITY = [
   ["unlisted", "Nicht gelistet"],
   ["followers", "Nur Follower"],
   ["authenticated", "Nur angemeldete Nutzer"],
+  ["trusted", "Vertraute Nutzer"],
   ["private", "Privat"],
 ];
 

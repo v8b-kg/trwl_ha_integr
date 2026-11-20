@@ -61,6 +61,7 @@ VISIBILITY = {
     "followers": 2,
     "private": 3,
     "authenticated": 4,
+    "trusted": 5,
 }
 BUSINESS = {"private": 0, "business": 1, "commute": 2}
 
